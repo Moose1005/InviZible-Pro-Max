@@ -29,7 +29,7 @@ Upstream InviZible Pro runs **Tor**, **DNSCrypt** and **Purple I2P** as togglabl
 | 🔌 | Point InviZible's SOCKS5 proxy at TailSocks (`127.0.0.1:48115`) |
 | 🌐 | Add the `ts.net` DNS forwarding rule so MagicDNS resolves |
 | 🛡️ | Exclude TailSocks from the VPN tunnel so its WireGuard can reach the mesh |
-| 🔒 | Force DNSCrypt on and **lock it** — see [why](#why-dnscrypt-locks) |
+| 🔒 | Force DNSCrypt on and **lock it** |
 | ⚖️ | Disable Tor and I2P (mutually exclusive by design) |
 
 Flipping it off reverts **all** of it. No orphaned config.
