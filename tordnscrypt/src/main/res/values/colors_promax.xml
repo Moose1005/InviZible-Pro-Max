@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GENERATED from Claude Design "InviZible Pro Max" OKLCH token system.
+     Source: design_handoff/.../InviZible Pro Max v4.dc.html
+     Static (non-dynamic) palette: hue=262, boost=0.18. Regenerate with
+     design_handoff/gen_colors.py — do not hand-edit. Mode: LIGHT (values) -->
+<resources>
+    <color name="pm_backdrop">#D2D4D8</color>
+    <color name="pm_canvas">#EEF0F4</color>
+    <color name="pm_danger">#BE222A</color>
+    <color name="pm_danger_line">#F19E97</color>
+    <color name="pm_dnscrypt">#0068D0</color>
+    <color name="pm_dnscrypt_glow">#1A83DB</color>
+    <color name="pm_dnscrypt_line">#6DB0F4</color>
+    <color name="pm_dnscrypt_wash">#C6EAFF</color>
+    <color name="pm_dot_dim">#A1A5AC</color>
+    <color name="pm_drawer_bg">#FDFDFF</color>
+    <color name="pm_good">#00742E</color>
+    <color name="pm_i2p">#AA2B8A</color>
+    <color name="pm_i2p_glow">#BC549E</color>
+    <color name="pm_i2p_line">#DD8CC3</color>
+    <color name="pm_i2p_wash">#FFD6F4</color>
+    <color name="pm_idle">#687284</color>
+    <color name="pm_line">#C9CCD1</color>
+    <color name="pm_line_faint">#DEE0E3</color>
+    <color name="pm_log_bg">#E4E6E9</color>
+    <color name="pm_on">#14161A</color>
+    <color name="pm_on_dim">#71757A</color>
+    <color name="pm_on_var">#4A4D53</color>
+    <color name="pm_primary">#466397</color>
+    <color name="pm_primary_deep">#2B4679</color>
+    <color name="pm_primary_glow">#8993A3</color>
+    <color name="pm_primary_line">#9EA5B1</color>
+    <color name="pm_primary_soft">#D3D8E1</color>
+    <color name="pm_primary_wash">#E2E6EE</color>
+    <color name="pm_ring_line">#CDCFD4</color>
+    <color name="pm_ring_line_faint">#E1E3E6</color>
+    <color name="pm_sheet_bg">#FDFDFF</color>
+    <color name="pm_snack_bg">#1D1F23</color>
+    <color name="pm_surface">#E0E3E8</color>
+    <color name="pm_surface2">#FDFDFF</color>
+    <color name="pm_surface3">#D6D9DF</color>
+    <color name="pm_surface_glass">#FDFDFF</color>
+    <color name="pm_tailscale">#00863A</color>
+    <color name="pm_tailscale_glow">#009B59</color>
+    <color name="pm_tailscale_line">#61C28E</color>
+    <color name="pm_tailscale_wash">#C3F4D6</color>
+    <color name="pm_tor">#7F43C1</color>
+    <color name="pm_tor_glow">#9364CE</color>
+    <color name="pm_tor_line">#B998EA</color>
+    <color name="pm_tor_wash">#EEDDFF</color>
+    <color name="pm_warn">#9D5F00</color>
+</resources>
