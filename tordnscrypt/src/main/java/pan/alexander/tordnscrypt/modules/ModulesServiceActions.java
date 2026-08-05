@@ -42,4 +42,6 @@ public class ModulesServiceActions {
     static final String START_ARP_SCANNER = "pan.alexander.tordnscrypt.action.START_ARP_SCANNER";
     static final String STOP_ARP_SCANNER = "pan.alexander.tordnscrypt.action.STOP_ARP_SCANNER";
     static final String CLEAR_IPTABLES_COMMANDS_HASH = "pan.alexander.tordnscrypt.action.CLEAR_IPTABLES_COMMANDS_HASH";
+    static final String ACTION_START_TAILSCALE = "pan.alexander.tordnscrypt.action.START_TAILSCALE";
+    static final String ACTION_STOP_TAILSCALE  = "pan.alexander.tordnscrypt.action.STOP_TAILSCALE";
 }

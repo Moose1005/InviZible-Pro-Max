@@ -22,6 +22,7 @@ package pan.alexander.tordnscrypt.modules;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Handler;
@@ -77,6 +78,8 @@ import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_STO
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_STOP_SERVICE;
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_STOP_SERVICE_FOREGROUND;
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_STOP_TOR;
+import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_START_TAILSCALE;
+import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.ACTION_STOP_TAILSCALE;
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.CLEAR_IPTABLES_COMMANDS_HASH;
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.EXTRA_LOOP;
 import static pan.alexander.tordnscrypt.modules.ModulesServiceActions.SLOWDOWN_LOOP;
@@ -99,6 +102,7 @@ import static pan.alexander.tordnscrypt.utils.enums.ModuleState.RESTARTING;
 import static pan.alexander.tordnscrypt.utils.enums.ModuleState.RUNNING;
 import static pan.alexander.tordnscrypt.utils.enums.ModuleState.STARTING;
 import static pan.alexander.tordnscrypt.utils.enums.ModuleState.STOPPED;
+import static pan.alexander.tordnscrypt.utils.enums.ModuleState.STOPPING;
 import static pan.alexander.tordnscrypt.utils.enums.OperationMode.ROOT_MODE;
 import static pan.alexander.tordnscrypt.utils.enums.OperationMode.VPN_MODE;
 
@@ -182,6 +186,8 @@ public class ModulesService extends Service {
         serviceIsRunning = true;
 
         modulesKiller = new ModulesKiller(this, pathVars.get());
+
+        registerTailscaleStatusReceiver();
 
         startModulesThreadsTimer();
 
@@ -271,6 +277,8 @@ public class ModulesService extends Service {
             case START_ARP_SCANNER -> startArpScanner();
             case STOP_ARP_SCANNER -> stopArpScanner();
             case CLEAR_IPTABLES_COMMANDS_HASH -> clearIptablesCommandsSavedHash();
+            case ACTION_START_TAILSCALE -> startTailscale();
+            case ACTION_STOP_TAILSCALE  -> stopTailscale();
         }
 
         setBroadcastReceiver();
@@ -816,6 +824,113 @@ public class ModulesService extends Service {
         }).start();
     }
 
+    private static final String TAILSCALE_BRIDGE_STATUS_ACTION =
+            "io.github.bropines.tailscaled.bridge.STATUS";
+    private static final String TAILSCALE_BRIDGE_PERMISSION =
+            "pan.alexander.tordnscrypt.BRIDGE_PERMISSION";
+    private static final int TAILSCALE_START_TIMEOUT_MSEC = 20000;
+    private static final int TAILSCALE_STOP_TIMEOUT_MSEC = 10000;
+
+    private android.content.BroadcastReceiver tailscaleStatusReceiver;
+
+    // Long-lived STATUS receiver: TailSocks' broadcast is the ONLY path to RUNNING.
+    // Fragment-scoped receivers miss broadcasts while the UI is backgrounded.
+    private void registerTailscaleStatusReceiver() {
+        tailscaleStatusReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                if (!TAILSCALE_BRIDGE_STATUS_ACTION.equals(intent.getAction())) {
+                    return;
+                }
+                boolean running = intent.getBooleanExtra("running", false);
+                logi("ModulesService TailSocks bridge status: running=" + running);
+                modulesStatus.setTailscaleState(running ? RUNNING : STOPPED);
+                modulesStatus.setTailscaleReady(running);
+            }
+        };
+        androidx.core.content.ContextCompat.registerReceiver(
+                this,
+                tailscaleStatusReceiver,
+                new IntentFilter(TAILSCALE_BRIDGE_STATUS_ACTION),
+                TAILSCALE_BRIDGE_PERMISSION,
+                null,
+                androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+        );
+    }
+
+    private void unregisterTailscaleStatusReceiver() {
+        if (tailscaleStatusReceiver != null) {
+            try {
+                unregisterReceiver(tailscaleStatusReceiver);
+            } catch (Exception ignored) {
+            }
+            tailscaleStatusReceiver = null;
+        }
+    }
+
+    private static final String TAILSOCKS_SERVICE_CLASS =
+            "io.github.bropines.tailscaled.core.TailscaledService";
+
+    private void startTailscale() {
+        modulesStatus.setTailscaleState(STARTING);
+        try {
+            // Start TailSocks' exported foreground service directly. InviZible is in the
+            // foreground here (its running FGS / the START tap), so it is exempt from the
+            // background-FGS-start restriction that blocks TailSocks from starting itself.
+            Intent svc = new Intent();
+            svc.setComponent(new android.content.ComponentName(
+                    pan.alexander.tordnscrypt.BuildConfig.TAILSOCKS_PACKAGE,
+                    TAILSOCKS_SERVICE_CLASS));
+            svc.setAction("START_ACTION");
+            // Force SOCKS-only: InviZible owns the system VpnService slot; TailSocks' TUN mode
+            // would seize it and revoke InviZible's tunnel (audit HIGH #3). This tells
+            // TailscaledService to skip TUN mode for this bridge-initiated start.
+            svc.putExtra("bridge_socks_only", true);
+            androidx.core.content.ContextCompat.startForegroundService(this, svc);
+        } catch (Exception e) {
+            loge("ModulesService startTailscale", e);
+            modulesStatus.setTailscaleState(STOPPED);
+            return;
+        }
+        // No optimistic RUNNING: only the STATUS reply confirms. Time out otherwise.
+        if (handler != null) {
+            handler.get().postDelayed(() -> {
+                if (modulesStatus.getTailscaleState() == STARTING) {
+                    loge("Tailscale start timed out: no bridge status from TailSocks");
+                    modulesStatus.setTailscaleState(STOPPED);
+                    if (handler != null) {
+                        handler.get().post(() -> Toast.makeText(
+                                this, R.string.tvTailscaleNotInstalled, Toast.LENGTH_LONG).show());
+                    }
+                }
+            }, TAILSCALE_START_TIMEOUT_MSEC);
+        }
+    }
+
+    private void stopTailscale() {
+        modulesStatus.setTailscaleState(STOPPING);
+        try {
+            // Start-with-STOP_ACTION: TailscaledService.onStartCommand handles STOP_ACTION by
+            // tearing itself down. Same direct-component path as start.
+            Intent svc = new Intent();
+            svc.setComponent(new android.content.ComponentName(
+                    pan.alexander.tordnscrypt.BuildConfig.TAILSOCKS_PACKAGE,
+                    TAILSOCKS_SERVICE_CLASS));
+            svc.setAction("STOP_ACTION");
+            androidx.core.content.ContextCompat.startForegroundService(this, svc);
+        } catch (Exception e) {
+            loge("ModulesService stopTailscale", e);
+        }
+        // Fail-safe: TailSocks may already be dead and unable to confirm.
+        if (handler != null) {
+            handler.get().postDelayed(() -> {
+                if (modulesStatus.getTailscaleState() == STOPPING) {
+                    modulesStatus.setTailscaleState(STOPPED);
+                }
+            }, TAILSCALE_STOP_TIMEOUT_MSEC);
+        }
+    }
+
     private void checkInternetConnection() {
         ConnectionCheckerInteractor interactor = internetCheckerInteractor.get();
         interactor.setInternetConnectionResult(false);
@@ -923,6 +1038,8 @@ public class ModulesService extends Service {
     public void onDestroy() {
 
         unregisterModulesBroadcastReceiver();
+
+        unregisterTailscaleStatusReceiver();
 
         if (usageStatistic != null) {
             usageStatistic.stopUpdate();

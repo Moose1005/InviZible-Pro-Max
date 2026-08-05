@@ -134,6 +134,7 @@ interface AppComponent {
     fun inject(receiver: DNSCryptFragmentReceiver)
     fun inject(receiver: TorFragmentReceiver)
     fun inject(receiver: ITPDFragmentReceiver)
+    fun inject(presenter: pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentPresenter)
     fun inject(receiver: HelpActivityReceiver)
     fun inject(receiver: IptablesReceiver)
     fun inject(dialogFragment: RequestIgnoreBatteryOptimizationDialog)

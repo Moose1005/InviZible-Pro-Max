@@ -101,6 +101,10 @@ public class ModulesKiller {
         sendStopIntent(context, ModulesServiceActions.ACTION_STOP_ITPD);
     }
 
+    public static void stopTailscale(Context context) {
+        sendStopIntent(context, ModulesServiceActions.ACTION_STOP_TAILSCALE);
+    }
+
     private static void sendStopIntent(Context context, String action) {
         ModulesActionSender.INSTANCE.sendIntent(context, action);
     }

@@ -34,4 +34,8 @@ public class ModulesRunner {
     public static void runITPD(Context context) {
         ModulesActionSender.INSTANCE.sendIntent(context, ModulesServiceActions.ACTION_START_ITPD);
     }
+
+    public static void runTailscale(Context context) {
+        ModulesActionSender.INSTANCE.sendIntent(context, ModulesServiceActions.ACTION_START_TAILSCALE);
+    }
 }

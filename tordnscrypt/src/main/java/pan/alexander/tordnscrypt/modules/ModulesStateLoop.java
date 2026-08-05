@@ -446,6 +446,7 @@ public class ModulesStateLoop implements Runnable,
 
                 if (vpnServiceEnabled &&
                         dnsCryptState == STOPPED && torState == STOPPED
+                        && modulesStatus.getTailscaleState() == STOPPED
                         && (firewallState == STOPPED || firewallState == STOPPING)) {
                     ServiceVPNHelper.stop("All modules stopped", modulesService);
                     modulesVersions.get().refreshVersions(modulesService);
@@ -559,6 +560,8 @@ public class ModulesStateLoop implements Runnable,
                         && !sharedPreferences.getBoolean(VPN_SERVICE_ENABLED, false)
                         && (modulesStatus.getDnsCryptState() == RUNNING
                         || modulesStatus.getTorState() == RUNNING
+                        || modulesStatus.getTailscaleState() == RUNNING
+                        || modulesStatus.getTailscaleState() == STARTING
                         || modulesStatus.getFirewallState() == STARTING
                         || modulesStatus.getFirewallState() == RUNNING)
                         && VpnService.prepare(modulesService) == null) {

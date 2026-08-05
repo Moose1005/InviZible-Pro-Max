@@ -41,6 +41,11 @@ public final class ModulesStatus {
     private volatile ModuleState itpdState = UNDEFINED;
 
     private volatile ModuleState firewallState = STOPPED;
+    // Tailscale has no process-detection loop (state is driven by explicit toggle + the
+    // TailSocks status bridge), so it must default to STOPPED rather than UNDEFINED —
+    // otherwise the MainFragment checkbox sync (state != STOPPED) auto-checks it on launch.
+    private volatile ModuleState tailscaleState = STOPPED;
+    private volatile boolean tailscaleReady;
 
     private volatile boolean rootAvailable = false;
     private volatile boolean useModulesWithRoot;
@@ -102,6 +107,22 @@ public final class ModulesStatus {
 
     public void setItpdState(ModuleState itpdState) {
         this.itpdState = itpdState;
+    }
+
+    public ModuleState getTailscaleState() {
+        return tailscaleState;
+    }
+
+    public void setTailscaleState(ModuleState tailscaleState) {
+        this.tailscaleState = tailscaleState;
+    }
+
+    public boolean isTailscaleReady() {
+        return tailscaleReady;
+    }
+
+    public void setTailscaleReady(boolean tailscaleReady) {
+        this.tailscaleReady = tailscaleReady;
     }
 
     public void setFirewallState(ModuleState firewallState, PreferenceRepository preferenceRepository) {

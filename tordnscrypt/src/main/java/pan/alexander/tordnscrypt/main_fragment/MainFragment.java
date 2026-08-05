@@ -51,6 +51,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -64,6 +65,10 @@ import pan.alexander.tordnscrypt.domain.preferences.PreferenceRepository;
 import pan.alexander.tordnscrypt.itpd_fragment.ITPDFragmentPresenter;
 import pan.alexander.tordnscrypt.itpd_fragment.ITPDFragmentReceiver;
 import pan.alexander.tordnscrypt.itpd_fragment.ITPDFragmentView;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentPresenter;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentReceiver;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentView;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleAutoConfig;
 import pan.alexander.tordnscrypt.R;
 import pan.alexander.tordnscrypt.dnscrypt_fragment.DNSCryptFragmentPresenter;
 import pan.alexander.tordnscrypt.dnscrypt_fragment.DNSCryptFragmentReceiver;
@@ -99,6 +104,7 @@ import com.google.android.material.divider.MaterialDivider;
 import javax.inject.Inject;
 
 public class MainFragment extends Fragment implements DNSCryptFragmentView, TorFragmentView, ITPDFragmentView,
+        TailscaleFragmentView,
         View.OnClickListener, CompoundButton.OnCheckedChangeListener, ViewTreeObserver.OnScrollChangedListener,
         View.OnTouchListener {
     @Inject
@@ -126,6 +132,13 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
 
     private ITPDFragmentPresenter itpdFragmentPresenter;
     private ITPDFragmentReceiver itpdFragmentReceiver;
+
+    private TailscaleFragmentPresenter tailscaleFragmentPresenter;
+    private TailscaleFragmentReceiver tailscaleBridgeReceiver;
+    private CheckBox chbTailscaleMainFragment;
+    private TextView tvTailscaleMainFragment;
+    private ProgressBar pbTailscaleMainFragment;
+    private MaterialDivider divTailscaleMainFragment;
 
     private TextView tvDNSCryptLog;
     private ScrollView svDNSCryptLog;
@@ -180,6 +193,11 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         pbITPDMainFragment = view.findViewById(R.id.pbITPDMainFragment);
         divITPDMainFragment = view.findViewById(R.id.divITPDMainFragment);
 
+        chbTailscaleMainFragment = view.findViewById(R.id.chbTailscaleMainFragment);
+        tvTailscaleMainFragment  = view.findViewById(R.id.tvTailscaleMainFragment);
+        pbTailscaleMainFragment  = view.findViewById(R.id.pbTailscaleMainFragment);
+        divTailscaleMainFragment = view.findViewById(R.id.divTailscaleMainFragment);
+
         Context context = getActivity();
         if (context == null) {
             return view;
@@ -192,20 +210,35 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         boolean hideIp = preferences.getBoolPreference("HideIp");
         boolean protectDns = preferences.getBoolPreference("ProtectDns");
         boolean accessITP = preferences.getBoolPreference("AccessITP");
+        boolean enableTailscale = preferences.getBoolPreference("EnableTailscale");
 
-        if (!hideIp && !protectDns && !accessITP) {
+        if (!hideIp && !protectDns && !accessITP && !enableTailscale) {
             preferences.setBoolPreference("HideIp", true);
             preferences.setBoolPreference("ProtectDns", true);
             preferences.setBoolPreference("AccessITP", false);
+            preferences.setBoolPreference("EnableTailscale", false);
         } else {
             chbHideIpMainFragment.setChecked(hideIp);
             chbProtectDnsMainFragment.setChecked(protectDns);
             chbAccessITPMainFragment.setChecked(accessITP);
+            chbTailscaleMainFragment.setChecked(enableTailscale);
+        }
+
+        if (enableTailscale) {
+            chbHideIpMainFragment.setEnabled(false);
+            chbAccessITPMainFragment.setEnabled(false);
+            // SECURITY (audit CRITICAL #1): keep DNSCrypt locked-on across app restarts while
+            // Tailscale is enabled, so the "Tailscale on + DNSCrypt off" clearnet-leak state
+            // cannot be reached even after a relaunch.
+            chbProtectDnsMainFragment.setChecked(true);
+            chbProtectDnsMainFragment.setEnabled(false);
+            preferences.setBoolPreference("ProtectDns", true);
         }
 
         chbHideIpMainFragment.setOnCheckedChangeListener(this);
         chbProtectDnsMainFragment.setOnCheckedChangeListener(this);
         chbAccessITPMainFragment.setOnCheckedChangeListener(this);
+        chbTailscaleMainFragment.setOnCheckedChangeListener(this);
 
         return view;
     }
@@ -222,10 +255,12 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         initDNSCryptFragmentPresenter(context);
         initTorFragmentPresenter(context);
         initITPDFragmentPresenter(context);
+        initTailscaleFragmentPresenter(context);
 
         dnsCryptFragmentPresenter.onStart();
         torFragmentPresenter.onStart();
         itpdFragmentPresenter.onStart();
+        tailscaleFragmentPresenter.onStart();
     }
 
     @Override
@@ -249,6 +284,10 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             if (itpdFragmentReceiver != null) {
                 LocalBroadcastManager.getInstance(context).unregisterReceiver(itpdFragmentReceiver);
             }
+
+            if (tailscaleBridgeReceiver != null) {
+                try { context.unregisterReceiver(tailscaleBridgeReceiver); } catch (Exception ignored) {}
+            }
         } catch (Exception e) {
             loge("MainFragment onStop", e);
         }
@@ -261,6 +300,9 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         }
         if (itpdFragmentPresenter != null) {
             itpdFragmentPresenter.onStop();
+        }
+        if (tailscaleFragmentPresenter != null) {
+            tailscaleFragmentPresenter.onStop();
         }
     }
 
@@ -286,15 +328,22 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         chbHideIpMainFragment = null;
         chbProtectDnsMainFragment = null;
         chbAccessITPMainFragment = null;
+        chbTailscaleMainFragment = null;
         tvDNSMainFragment = null;
         tvTorMainFragment = null;
         tvITPDMainFragment = null;
+        tvTailscaleMainFragment = null;
         pbDNSMainFragment = null;
         divDNSMainFragment = null;
         divTorMainFragment = null;
         divITPDMainFragment = null;
         pbTorMainFragment = null;
         pbITPDMainFragment = null;
+        pbTailscaleMainFragment = null;
+        divTailscaleMainFragment = null;
+
+        tailscaleFragmentPresenter = null;
+        tailscaleBridgeReceiver = null;
 
         tvDNSCryptLog = null;
         svDNSCryptLog = null;
@@ -328,6 +377,7 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         if (dnsCryptFragmentPresenter == null
                 || torFragmentPresenter == null
                 || itpdFragmentPresenter == null
+                || tailscaleFragmentPresenter == null
                 || orientationLandscape) {
             return;
         }
@@ -345,12 +395,14 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         if (v.getId() == R.id.btnStartMainFragment) {
 
             boolean runDnsCrypt = chbProtectDnsMainFragment.isChecked();
-            boolean runTor = chbHideIpMainFragment.isChecked();
-            boolean runITPD = chbAccessITPMainFragment.isChecked();
+            boolean runTailscale = chbTailscaleMainFragment.isChecked();
+            boolean runTor  = !runTailscale && chbHideIpMainFragment.isChecked();
+            boolean runITPD = !runTailscale && chbAccessITPMainFragment.isChecked();
 
             if (modulesStatus.getDnsCryptState() == STOPPED
                     && modulesStatus.getTorState() == STOPPED
                     && modulesStatus.getItpdState() == STOPPED
+                    && modulesStatus.getTailscaleState() == STOPPED
                     && modulesStatus.getFirewallState() != RUNNING) {
 
                 if (modulesStatus.getFirewallState() == STOPPED
@@ -377,6 +429,10 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
                 if (runITPD) {
                     itpdFragmentPresenter.startButtonOnClick();
                 }
+
+                if (runTailscale) {
+                    tailscaleFragmentPresenter.startButtonOnClick();
+                }
             } else {
 
                 if (modulesStatus.getFirewallState() != STOPPED && isChildLockDisabled()) {
@@ -400,6 +456,9 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
                     itpdFragmentPresenter.startButtonOnClick();
                 }
 
+                if (modulesStatus.getTailscaleState() != STOPPED) {
+                    tailscaleFragmentPresenter.startButtonOnClick();
+                }
             }
         }
     }
@@ -430,6 +489,7 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
                 || dnsCryptFragmentPresenter == null
                 || torFragmentPresenter == null
                 || itpdFragmentPresenter == null
+                || tailscaleFragmentPresenter == null
                 || orientationLandscape) {
             return;
         }
@@ -441,6 +501,7 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         if (modulesStatus.getDnsCryptState() != STOPPED
                 || modulesStatus.getTorState() != STOPPED
                 || modulesStatus.getItpdState() != STOPPED
+                || modulesStatus.getTailscaleState() != STOPPED
                 || modulesStatus.getFirewallState() != STOPPED) {
 
             int id = buttonView.getId();
@@ -462,6 +523,12 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
                 } else if (modulesStatus.getItpdState() == STOPPED && isChecked) {
                     itpdFragmentPresenter.startButtonOnClick();
                 }
+            } else if (id == R.id.chbTailscaleMainFragment) {
+                if (modulesStatus.getTailscaleState() != STOPPED && !isChecked) {
+                    tailscaleFragmentPresenter.startButtonOnClick();
+                } else if (modulesStatus.getTailscaleState() == STOPPED && isChecked) {
+                    tailscaleFragmentPresenter.startButtonOnClick();
+                }
             }
         }
 
@@ -474,6 +541,41 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             preferences.setBoolPreference("HideIp", isChecked);
         } else if (id == R.id.chbAccessITPMainFragment) {
             preferences.setBoolPreference("AccessITP", isChecked);
+        } else if (id == R.id.chbTailscaleMainFragment) {
+            preferences.setBoolPreference("EnableTailscale", isChecked);
+            enforceTailscaleMutualExclusion(isChecked);
+        }
+    }
+
+    private void enforceTailscaleMutualExclusion(boolean tailscaleEnabled) {
+        if (chbHideIpMainFragment == null || chbAccessITPMainFragment == null
+                || chbProtectDnsMainFragment == null) return;
+        if (tailscaleEnabled) {
+            // SECURITY (audit HIGH #5): startButtonOnClick() toggles based on RUNNING vs.
+            // not-RUNNING, so if Tor/I2P are caught mid-STARTING it would RE-LAUNCH them instead
+            // of stopping them, defeating mutual exclusion. forceStop() stops state-agnostically.
+            torFragmentPresenter.forceStop();
+            itpdFragmentPresenter.forceStop();
+            chbHideIpMainFragment.setChecked(false);
+            chbAccessITPMainFragment.setChecked(false);
+            chbHideIpMainFragment.setEnabled(false);
+            chbAccessITPMainFragment.setEnabled(false);
+
+            // SECURITY (audit CRITICAL #1): DNSCrypt owns the capturing VpnService that routes
+            // proxied app traffic to TailSocks. If it is off while Tailscale is on (and Tor/I2P/
+            // firewall off), nothing captures traffic and apps egress CLEARNET while the UI shows
+            // "Tailscale Running". Force DNSCrypt on and lock its checkbox so that leak state is
+            // unreachable. (Setting the checkbox fires onCheckedChanged, which starts DNSCrypt if a
+            // session is already live and persists the ProtectDns pref.)
+            if (!chbProtectDnsMainFragment.isChecked()) {
+                chbProtectDnsMainFragment.setChecked(true);
+            }
+            chbProtectDnsMainFragment.setEnabled(false);
+            preferenceRepository.get().setBoolPreference("ProtectDns", true);
+        } else {
+            chbHideIpMainFragment.setEnabled(true);
+            chbAccessITPMainFragment.setEnabled(true);
+            chbProtectDnsMainFragment.setEnabled(true);
         }
     }
 
@@ -489,6 +591,7 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         if ((modulesStatus.getDnsCryptState() == STOPPED || modulesStatus.getDnsCryptState() == UNDEFINED)
                 && (modulesStatus.getTorState() == STOPPED || modulesStatus.getTorState() == UNDEFINED)
                 && (modulesStatus.getItpdState() == STOPPED || modulesStatus.getItpdState() == UNDEFINED)
+                && (modulesStatus.getTailscaleState() == STOPPED || modulesStatus.getTailscaleState() == UNDEFINED)
                 && (modulesStatus.getFirewallState() == STOPPED || modulesStatus.getFirewallState() == STOPPING)) {
 
             mainStartButtonDrawable = ResourcesCompat.getDrawable(context.getResources(), R.drawable.button_main_selector, context.getTheme());
@@ -507,13 +610,16 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
 
             if (modulesStatus.getDnsCryptState() != STOPPING
                     && modulesStatus.getTorState() != STOPPING
-                    && modulesStatus.getItpdState() != STOPPING) {
+                    && modulesStatus.getItpdState() != STOPPING
+                    && modulesStatus.getTailscaleState() != STOPPING) {
 
                 setChbProtectDnsMainFragment(modulesStatus.getDnsCryptState() != STOPPED);
 
                 setChbHideIpMainFragment(modulesStatus.getTorState() != STOPPED);
 
                 setChbAccessITPMainFragment(modulesStatus.getItpdState() != STOPPED);
+
+                setChbTailscaleMainFragment(modulesStatus.getTailscaleState() != STOPPED);
             }
         }
     }
@@ -526,6 +632,17 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             chbProtectDnsMainFragment.setChecked(true);
         } else if (chbProtectDnsMainFragment.isChecked() && !checked) {
             chbProtectDnsMainFragment.setChecked(false);
+        }
+    }
+
+    private void setChbTailscaleMainFragment(boolean checked) {
+        if (chbTailscaleMainFragment == null) {
+            return;
+        }
+        if (!chbTailscaleMainFragment.isChecked() && checked) {
+            chbTailscaleMainFragment.setChecked(true);
+        } else if (chbTailscaleMainFragment.isChecked() && !checked) {
+            chbTailscaleMainFragment.setChecked(false);
         }
     }
 
@@ -696,9 +813,14 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
 
     @Override
     public void setTorStartButtonEnabled(boolean enabled) {
-        if (chbHideIpMainFragment.isEnabled() && !enabled) {
+        // SECURITY (audit HIGH #6): this fires from TorFragmentPresenter.onStart() on every
+        // fragment recreation (rotation, backgrounding), unconditionally re-enabling the
+        // checkbox and overriding enforceTailscaleMutualExclusion's lock. Keep it locked while
+        // Tailscale is the user's selected mode, regardless of what the caller asked for.
+        boolean effectiveEnabled = enabled && !preferenceRepository.get().getBoolPreference("EnableTailscale");
+        if (chbHideIpMainFragment.isEnabled() && !effectiveEnabled) {
             chbHideIpMainFragment.setEnabled(false);
-        } else if (!chbHideIpMainFragment.isEnabled() && enabled) {
+        } else if (!chbHideIpMainFragment.isEnabled() && effectiveEnabled) {
             chbHideIpMainFragment.setEnabled(true);
         }
     }
@@ -810,9 +932,11 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
 
     @Override
     public void setITPDStartButtonEnabled(boolean enabled) {
-        if (chbAccessITPMainFragment.isEnabled() && !enabled) {
+        // SECURITY (audit HIGH #6): see setTorStartButtonEnabled — same durability gap for I2P.
+        boolean effectiveEnabled = enabled && !preferenceRepository.get().getBoolPreference("EnableTailscale");
+        if (chbAccessITPMainFragment.isEnabled() && !effectiveEnabled) {
             chbAccessITPMainFragment.setEnabled(false);
-        } else if (!chbAccessITPMainFragment.isEnabled() && enabled) {
+        } else if (!chbAccessITPMainFragment.isEnabled() && effectiveEnabled) {
             chbAccessITPMainFragment.setEnabled(true);
         }
     }
@@ -823,6 +947,49 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             progressBarExpandWithAnimation(pbITPDMainFragment, divITPDMainFragment, 0f, 1f);
         } else if (pbITPDMainFragment.isIndeterminate() && !indeterminate) {
             progressBarCollapseWithAnimation(pbITPDMainFragment, divITPDMainFragment, 1f, 0f);
+        }
+    }
+
+    private void initTailscaleFragmentPresenter(Context context) {
+        tailscaleFragmentPresenter = new TailscaleFragmentPresenter(this);
+
+        tailscaleBridgeReceiver = new TailscaleFragmentReceiver(this, tailscaleFragmentPresenter);
+
+        if (!orientationLandscape) {
+            IntentFilter intentFilterBridgeStatus =
+                    new IntentFilter("io.github.bropines.tailscaled.bridge.STATUS");
+            ContextCompat.registerReceiver(
+                    context,
+                    tailscaleBridgeReceiver,
+                    intentFilterBridgeStatus,
+                    "pan.alexander.tordnscrypt.BRIDGE_PERMISSION",
+                    null,
+                    ContextCompat.RECEIVER_EXPORTED
+            );
+        }
+    }
+
+    @Override
+    public void setTailscaleStatus(int resourceText, int resourceColor) {
+        tvTailscaleMainFragment.setText(resourceText);
+        tvTailscaleMainFragment.setTextColor(getResources().getColor(resourceColor));
+    }
+
+    @Override
+    public void setTailscaleStartButtonEnabled(boolean enabled) {
+        if (chbTailscaleMainFragment.isEnabled() && !enabled) {
+            chbTailscaleMainFragment.setEnabled(false);
+        } else if (!chbTailscaleMainFragment.isEnabled() && enabled) {
+            chbTailscaleMainFragment.setEnabled(true);
+        }
+    }
+
+    @Override
+    public void setTailscaleProgressBarIndeterminate(boolean indeterminate) {
+        if (!pbTailscaleMainFragment.isIndeterminate() && indeterminate) {
+            progressBarExpandWithAnimation(pbTailscaleMainFragment, divTailscaleMainFragment, 0f, 1f);
+        } else if (pbTailscaleMainFragment.isIndeterminate() && !indeterminate) {
+            progressBarCollapseWithAnimation(pbTailscaleMainFragment, divTailscaleMainFragment, 1f, 0f);
         }
     }
 

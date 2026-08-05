@@ -39,6 +39,13 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="31" />
 
+    <!-- Bridge to the TailSocks companion app. Signature protection requires both
+         apps to be signed with the same key. -->
+    <permission
+        android:name="pan.alexander.tordnscrypt.BRIDGE_PERMISSION"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="pan.alexander.tordnscrypt.BRIDGE_PERMISSION" />
+
     <uses-permission
         android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />

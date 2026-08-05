@@ -409,6 +409,25 @@ public class ITPDFragmentPresenter implements ITPDFragmentPresenterInterface,
         setITPDProgressBarIndeterminate(true);
     }
 
+    // SECURITY (audit HIGH #5): startButtonOnClick() only stops I2P when state==RUNNING; for
+    // STARTING/RESTARTING it takes the start branch again, RE-LAUNCHING I2P instead of stopping
+    // it. Mutual-exclusion enforcement (Tailscale on => I2P off) needs a state-agnostic stop that
+    // works no matter which non-stopped state I2P is caught in.
+    public void forceStop() {
+        if (!isActive()) {
+            return;
+        }
+        ModuleState state = modulesStatus.getItpdState();
+        if (state == STOPPED || state == STOPPING) {
+            return;
+        }
+        setITPDStartButtonEnabled(false);
+        setITPDStopping();
+        stopITPD();
+        FileShortener.shortenTooTooLongFile(appDataDir + "/logs/i2pd.log");
+        setITPDProgressBarIndeterminate(true);
+    }
+
     private void runITPD() {
         if (isActive()) {
             ModulesRunner.runITPD(context);

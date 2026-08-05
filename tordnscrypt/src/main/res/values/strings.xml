@@ -36,6 +36,11 @@
     <string name="tvDNSRunning">DNSCrypt Running</string>
     <string name="tvDNSStopping">DNSCrypt Stopping</string>
     <string name="tvDNSDefaultLog" translatable="false">DNSCrypt-proxy version</string>
+    <string name="tvTailscaleStop">Tailscale Stopped</string>
+    <string name="tvTailscaleNotInstalled">TailSocks Not Installed</string>
+    <string name="tvTailscaleStarting">Tailscale Starting</string>
+    <string name="tvTailscaleRunning">Tailscale Running</string>
+    <string name="tvTailscaleStopping">Tailscale Stopping</string>
     <string name="tvTorStop">Tor Stopped</string>
     <string name="tvTorInstalled">Tor Installed</string>
     <string name="tvTorInstalling">Tor Installing</string>
@@ -611,6 +616,7 @@
     <string name="main_fragment_hide_ip">Hide IP with TOR</string>
     <string name="main_fragment_protect_dns">Defend with DNSCRYPT</string>
     <string name="main_fragment_access_i2p">Access to I2P network with Purple I2P</string>
+    <string name="main_fragment_tailscale">Access Tailnet with TAILSCALE</string>
     <string name="reset_settings_title">Attention</string>
     <string name="ask_reset_settings_btn">Reset</string>
     <string name="ask_reset_settings_text">InviZible Pro cannot start %1$s! Please try resetting %2$s settings. If this does not help, please restart your device.</string>

@@ -655,6 +655,25 @@ public class TorFragmentPresenter implements TorFragmentPresenterInterface,
 
     }
 
+    // SECURITY (audit HIGH #5): startButtonOnClick() only stops Tor when state==RUNNING; for
+    // STARTING/RESTARTING it takes the start branch again, RE-LAUNCHING Tor instead of stopping
+    // it. Mutual-exclusion enforcement (Tailscale on => Tor off) needs a state-agnostic stop that
+    // works no matter which non-stopped state Tor is caught in.
+    public void forceStop() {
+        if (!isActive()) {
+            return;
+        }
+        ModuleState state = modulesStatus.getTorState();
+        if (state == STOPPED || state == STOPPING) {
+            return;
+        }
+        setTorStartButtonEnabled(false);
+        updateIPsManager.get().stopRefreshTorUnlockIPs();
+        setTorStopping();
+        stopTor();
+        setTorProgressBarIndeterminate(true);
+    }
+
     private void runTor() {
         if (isActive()) {
             if (!modulesStatus.isDnsCryptReady()) {
