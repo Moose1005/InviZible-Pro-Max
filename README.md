@@ -1,145 +1,139 @@
-# InviZible Pro
+<div align="center">
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/gedsh/invizible?style=plastic)
-![GitHub Releases](https://img.shields.io/github/downloads/gedsh/invizible/latest/total?color=blue&style=plastic)
-[![Translation status](https://hosted.weblate.org/widgets/invizible/-/invizible/svg-badge.svg)](https://hosted.weblate.org/engage/invizible/?utm_source=widget)
+<img src="docs/assets/hero.svg" alt="InviZible Pro Max — Tor, DNSCrypt, I2P and Tailscale in one app" width="100%">
 
-### [Google Play stable version](https://play.google.com/store/apps/details?id=pan.alexander.tordnscrypt.gp)
+<br>
 
-### [Download the latest version from GitHub](https://github.com/Gedsh/InviZible/releases/latest)
+[![version](https://img.shields.io/github/v/tag/Moose1005/InviZible?label=version&color=00D481&style=for-the-badge&logo=android&logoColor=white)](https://github.com/Moose1005/InviZible/tags)
+[![status](https://img.shields.io/badge/status-beta-FF9800?style=for-the-badge)](#-status--read-before-you-trust-it)
+[![license](https://img.shields.io/badge/license-GPL--3.0-3AB6FF?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0.txt)
+[![upstream](https://img.shields.io/badge/fork_of-Gedsh%2FInviZible-C88FFF?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Gedsh/InviZible)
 
-### [IzzyOnDroid F-Droid beta version](https://apt.izzysoft.de/fdroid/index/apk/pan.alexander.tordnscrypt)
+**A community fork of [InviZible Pro](https://github.com/Gedsh/InviZible) that folds Tailscale into the stack — so your tailnet rides the same tunnel as everything else.**
 
-### [F-Droid stable version](https://f-droid.org/packages/pan.alexander.tordnscrypt.stable/)
+</div>
 
-## Android application for online privacy and security
+---
 
-*Preserves privacy, prevents tracking, and provides access to restricted and hidden online content*
+## What this fork adds
 
-**InviZible Pro** combines the strengths of **Tor**, **DNSCrypt**, and **Purple I2P** to provide a comprehensive solution for online privacy, security, and anonymity.
+Upstream InviZible Pro runs **Tor**, **DNSCrypt** and **Purple I2P** as togglable modules. This fork adds a fourth:
 
-### Tor
-* Hides user's identity and location
-* Defends against traffic analysis and censorship
-* Protects online activities from surveillance
-* Routes traffic through multiple servers
-* Provides access to "onion" websites
-* Open-source
+> ### 🔗 Tailscale — as a first-class module
+> Reach your tailnet **without giving up InviZible's tunnel**. Android only allows one VPN at a time, so instead of hot-swapping apps, this bridges to [**TailSocks**](https://github.com/bropines/tailsocks) — a userspace `tailscaled` — over a signature-protected IPC channel. No root required.
 
-### DNSCrypt
-* Secures DNS traffic with encryption
-* Verifies DNS server legitimacy using cryptographic keys
-* Shields against DNS-based attacks like spoofing
-* Guards against eavesdropping and DNS query logging
-* Can block ads *
-* Can protect against dangerous and malicious sites *
-* Can block "adult" sites *
-* Open-source
+**One toggle does everything.** Flipping Tailscale on will:
 
-**Depending on the selected dnscrypt server*
-**(Not available in Google Play version!)**
+| | |
+|---|---|
+| 🔌 | Point InviZible's SOCKS5 proxy at TailSocks (`127.0.0.1:48115`) |
+| 🌐 | Add the `ts.net` DNS forwarding rule so MagicDNS resolves |
+| 🛡️ | Exclude TailSocks from the VPN tunnel so its WireGuard can reach the mesh |
+| 🔒 | Force DNSCrypt on and **lock it** — see [why](#why-dnscrypt-locks) |
+| ⚖️ | Disable Tor and I2P (mutually exclusive by design) |
 
-### Purple I2P
-* Provides anonymous communication network
-* Conceals users' identities and activities
-* Defends against surveillance
-* Ensures secure data transmission
-* Distributed and self-organizing network
-* Provides access to "i2p" websites (eepsites)
-* Open-source
+Flipping it off reverts **all** of it. No orphaned config.
 
-To start using **InviZible Pro**, all you need is an Android phone.
-Just run all three modules and enjoy safe and comfortable internet surfing. However,
-if you want to get full control over the application and your internet connection - no problem!
-There is access to a large number of both simple and professional settings.
-You can flexibly configure **InviZible Pro** itself, as well as its modules - **DNSCrypt**,
-**Tor** and **Purple I2P**, to satisfy the most non-standard requirements.
+---
 
-**InviZible Pro** is an all-in-one application. After installation, you can remove all of your VPN applications and ad blockers.
- In most cases, **InviZible Pro** works better, is more stable, and faster than free VPNs.
- It does not contain any ads, bloatware and does not spy upon its users.
- 
-### Why InviZible Pro is better than other similar applications:
-* Privacy Protection: Guards your online activities.
-* Anonymous Browsing: Conceals your identity.
-* Secure DNS Encryption: Protects your DNS queries.
-* Anonymity Network Integration: Utilizes Tor, DNSCrypt, and Purple I2P.
-* Firewall: Safeguards against unauthorized access.
-* Access to Restricted Content: Unblocks blocked websites.
-* Anti-Tracking Measures: Prevents tracking of your online behavior.
-* Hidden Network Access: Connects to "onion" and "i2p" websites.
-* Open-Source: Transparent and community-driven.
-* User-Friendly Design: Simple and intuitive interface.
+## How it works
 
-## Compatibility
-
-**InviZible Pro** can be used both with a rooted or non-rooted device.
-
-Please visit the [wiki](https://github.com/Gedsh/InviZible/wiki) to find out how to use it.
-
-Depending on the rooting method and device specifics, an application may be incompatible with some android phones.
-
-
-## Support
-
-For questions, feature requests and bug reports, you can use GitHub.
-
-**Official site: [invizible.net](https://invizible.net)**
-
-### International:
- 
-Telegram channel: [InviZiblePro](https://t.me/InviZiblePro)
-
-Telegram group: [InviZiblePro_Group](https://t.me/InviZiblePro_Group)
-
-Matrix group: [Matrix](https://matrix.to/#/#invizible-pro-en:matrix.org)
-
-### For Russian-speaking users:
-
-Telegram channel: [InviZiblePro](https://t.me/InviZibleProRus)
-
-Telegram group: [InviZiblePro_Group](https://t.me/InviZibleProRus_Group)
-
-Matrix group: [Matrix](https://matrix.to/#/#invizible-pro-ru:matrix.org)
-
-There is support for the latest version of **InviZible Pro** only.
-
-There is no support for things that are not directly related to **InviZible Pro**.
-
-There is no support for building and developing things by yourself.
-
-## Contributing
-
-#### Building
-To clone a project, use the command:
-```bash
-git clone --recursive https://github.com/Gedsh/InviZible
+```mermaid
+flowchart LR
+    A["📱 Your app"] --> B["InviZible<br/>VpnService"]
+    B --> C["SOCKS5<br/>127.0.0.1:48115"]
+    C --> D["TailSocks<br/>userspace tailscaled"]
+    D --> E["🌐 Tailnet peer"]
+    B -.->|"DNS"| F["DNSCrypt<br/>+ ts.net rule"]
 ```
 
-To build **InviZible Pro** please use **Android Studio**.
+This exact path is **verified end-to-end on-device**, with evidence captured at both ends — not assumed from the fact that it compiles.
 
-If you see something like this:
-_Illegal character in opaque part at index 2: C:\KStore\keystore.properties_
+<details>
+<summary><b>Why DNSCrypt locks</b> — it's a leak fix, not a UI quirk</summary>
 
-Please comment lines of the settings.gradle file in the project root, as shown below:
+<br>
+
+DNSCrypt owns the capturing `VpnService` that routes proxied traffic into the SOCKS5 hop. An adversarial audit found that Tailscale could report **Running** while that service was down — with DNSCrypt, Tor, I2P and the firewall all off, app traffic would egress **clearnet** while the UI claimed protection.
+
+A privacy tool must fail *closed*. So DNSCrypt is now force-enabled and locked whenever Tailscale is on, and the VPN lifecycle accounts for Tailscale's state. That leak state is now unreachable.
+
+</details>
+
+<details>
+<summary><b>Security audit</b> — 21 findings, all 5 critical/high fixed and verified</summary>
+
+<br>
+
+An adversarial multi-agent review of the bridge produced 21 confirmed findings. All five that materially threatened leak-safety are fixed and **runtime-verified on-device**:
+
+| # | Severity | Issue | Status |
+|---|---|---|---|
+| 1 | 🔴 Critical | Tailscale could run with no capturing VPN → clearnet egress | ✅ Fixed |
+| 2 | 🟠 High | TailSocks never removed from VPN bypass on disable | ✅ Fixed |
+| 3 | 🟠 High | TailSocks' TUN mode could seize the VpnService slot | ✅ Fixed |
+| 5 | 🟠 High | Stopping Tor/I2P mid-start *re-launched* them | ✅ Fixed |
+| 6 | 🟠 High | Module lock didn't survive rotation/backgrounding | ✅ Fixed |
+
+15 lower-severity findings (config hygiene, IPC hardening, self-healing state races) remain open — none are believed to be leaks.
+
+</details>
+
+---
+
+## ⚠️ Status — read before you trust it
+
+**This is beta.** It works, and the core path is proven — but it is not yet something to route sensitive traffic through unexamined.
+
+- **Requires Android's _"Block connections without VPN"_ to be OFF.** That's a device-wide kill switch, and disabling it is a real security tradeoff. Not yet resolved.
+- **15 lower-severity audit findings** still open.
+- **IPv6 to the tailnet is untested.** No soak or long-run stability testing yet.
+- **Debug-signed builds only.** No release-signing story yet.
+- **SOCKS5 is TCP-only by design** — UDP (QUIC/HTTP3) is refused rather than proxied. It fails closed, but some apps need QUIC disabled to work.
+
+---
+
+## Roadmap
+
+- [x] Tailscale as a fourth module, bridged to TailSocks
+- [x] One-toggle auto-config, fully reversible
+- [x] Close all critical/high audit findings, verified on-device
+- [x] Prove the end-to-end traffic path with evidence at both ends
+- [x] First public tagged release
+- [ ] Close the remaining 15 audit findings
+- [ ] Resolve the kill-switch tradeoff (keep lockdown *on*)
+- [ ] Disable IPv6 to the tailnet, or prove it leak-safe
+- [ ] Soak, reboot, doze and network-switch stability testing
+- [ ] Release signing + reproducible builds
+- [ ] Material 3 UI rework ([design tokens already landed](docs/UI_INTEGRATION_CONTRACT.md))
+- [ ] Long term: fold the Go core in-process, removing the second app entirely
+
+---
+
+## Building
+
+Requires JDK 17, Android SDK, and NDK `23.1.7779620`.
 
 ```bash
-include ':tordnscrypt', ':filepicker'
-project(':filepicker').projectDir = new File('android-filepicker/filepicker')
-//Please comment line below if you are not the project owner
-//project(':tordnscrypt').buildFileName = 'owner.gradle'
+./gradlew :tordnscrypt:assembleFdroidArm64Debug     # real device
+./gradlew :tordnscrypt:assembleFdroidX86_64Debug    # emulator
 ```
 
-It is expected that you can solve build problems yourself, so there is no support for building. 
-If you cannot build yourself, there are prebuilt versions of **InviZible Pro** available [here](https://github.com/Gedsh/InviZible/releases/latest).
+You also need [**TailSocks**](https://github.com/bropines/tailsocks) installed. **Both apps must be signed with the same key** — the bridge is gated behind a signature-level permission, and a mismatch fails silently.
 
-#### Translating
+It is expected that you can solve build problems yourself, so there is no support for building. Prebuilt versions of upstream **InviZible Pro** are available [here](https://github.com/Gedsh/InviZible/releases/latest).
 
-[Translate InviZible on Hosted Weblate](https://hosted.weblate.org/engage/invizible/).
+---
 
-[![Translation status](https://hosted.weblate.org/widgets/invizible/-/multi-auto.svg)](https://hosted.weblate.org/engage/invizible/?utm_source=widget)
+## Credits & attribution
 
-## Attribution
+This is an **unofficial community fork**. All credit for InviZible Pro belongs to its author.
+
+| | |
+|---|---|
+| **InviZible Pro** | [Garmatin Oleksandr](https://github.com/Gedsh) — [Gedsh/InviZible](https://github.com/Gedsh/InviZible) |
+| **TailSocks** | [bropines](https://github.com/bropines) — userspace `tailscaled` for Android |
+| **This fork** | Tailscale integration, security fixes, UI rework |
 
 InviZible Pro uses:
 
@@ -152,10 +146,21 @@ InviZible Pro uses:
 * [Angads25/android-filepicker](https://github.com/Angads25/android-filepicker)
 * [meefik/busybox](https://github.com/meefik/busybox)
 
-This product is produced independently from the **Tor®**, **DNSCrypt**, **Purple I2P** software 
-and carries no guarantee from The Above Projects about quality, suitability or anything else.
+This product is produced independently from the **Tor®**, **DNSCrypt**, **Purple I2P** and **Tailscale** software and carries no guarantee from the above projects about quality, suitability or anything else.
 
-## Donations
+### Translating
+
+[Translate InviZible on Hosted Weblate](https://hosted.weblate.org/engage/invizible/).
+
+### Support the original author
+
+The upstream project is maintained by Garmatin Oleksandr. If this software is useful to you, support **upstream** — these are his addresses, not this fork's:
+
+<details>
+<summary>Donation addresses</summary>
+
+<br>
+
 **Patreon**: https://www.patreon.com/inviziblepro
 
 **BTC**: 1GfJwiHG6xKCQCpHeW6fELzFfgsvcSxVUR
@@ -170,9 +175,13 @@ and carries no guarantee from The Above Projects about quality, suitability or a
 
 **XMR** 82WFzofvGUdY52w9zCfrZWaHVqEDcJH7y1FujzvXdGPeU9UpuFNeCvtCKhtpC6pZmMYuCNgFjcw5mHAgEJQ4RTwV9XRhobX
 
+</details>
+
+---
+
 ## License
 
-[GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.txt)
+[**GNU General Public License version 3**](https://www.gnu.org/licenses/gpl-3.0.txt)
 
 Copyright (c) 2019-2026 Garmatin Oleksandr invizible.soft@gmail.com
 
@@ -185,5 +194,3 @@ This file is part of **InviZible Pro**.
 **InviZible Pro** is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with **InviZible Pro**. If not, see [http://www.gnu.org/licenses/](https://www.gnu.org/licenses/)
-
-

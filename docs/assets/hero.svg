@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 300" width="820" height="300" role="img" aria-label="InviZible Pro Max — Tor, DNSCrypt, I2P and Tailscale in one app. Traffic path: app to InviZible VPN to SOCKS5 to TailSocks to tailnet.">
+  <defs>
+    <linearGradient id="ts" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00D481"/><stop offset="1" stop-color="#3AB6FF"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="820" height="300" rx="26" fill="#080A0E"/>
+  <rect x="1" y="1" width="818" height="298" rx="25" fill="none" stroke="#383B3F" stroke-width="1.5"/>
+
+  <!-- breathing halo -->
+  <circle cx="700" cy="70" r="70" fill="url(#ts)" opacity=".06">
+    <animate attributeName="opacity" values=".05;.13;.05" dur="5s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="66;80;66" dur="5s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="46" y="66" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="34" font-weight="700" fill="#F4F5F8" letter-spacing="-0.6">InviZible <tspan fill="#00D481">Pro Max</tspan></text>
+  <text x="47" y="94" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12.5" fill="#7D8086" letter-spacing="2.4">TOR · DNSCRYPT · I2P · TAILSCALE — ONE APP</text>
+
+  <!-- module chips -->
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11.5" font-weight="700" letter-spacing="1.1">
+    <g>
+      <rect x="46" y="120" width="104" height="34" rx="17" fill="#2A1740" stroke="#7B3FA8"/>
+      <circle cx="66" cy="137" r="4" fill="#C88FFF"><animate attributeName="opacity" values="1;.3;1" dur="2.6s" repeatCount="indefinite"/></circle>
+      <text x="78" y="141" fill="#C88FFF">TOR</text>
+    </g>
+    <g>
+      <rect x="160" y="120" width="140" height="34" rx="17" fill="#10314C" stroke="#1E6FA8"/>
+      <circle cx="180" cy="137" r="4" fill="#3AB6FF"><animate attributeName="opacity" values="1;.3;1" dur="2.6s" begin=".5s" repeatCount="indefinite"/></circle>
+      <text x="192" y="141" fill="#3AB6FF">DNSCRYPT</text>
+    </g>
+    <g>
+      <rect x="310" y="120" width="96" height="34" rx="17" fill="#43152F" stroke="#A03B78"/>
+      <circle cx="330" cy="137" r="4" fill="#FD7AD6"><animate attributeName="opacity" values="1;.3;1" dur="2.6s" begin="1s" repeatCount="indefinite"/></circle>
+      <text x="342" y="141" fill="#FD7AD6">I2P</text>
+    </g>
+    <g>
+      <rect x="416" y="120" width="146" height="34" rx="17" fill="#04382A" stroke="#0A7D5C"/>
+      <circle cx="436" cy="137" r="4.6" fill="#00D481" filter="url(#glow)"><animate attributeName="opacity" values="1;.35;1" dur="1.5s" repeatCount="indefinite"/></circle>
+      <text x="449" y="141" fill="#00D481">TAILSCALE</text>
+      <text x="548" y="134" font-size="8.5" fill="#00D481" letter-spacing="0">NEW</text>
+    </g>
+  </g>
+
+  <!-- verified traffic path -->
+  <text x="46" y="196" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="9.5" fill="#5E6166" letter-spacing="2">VERIFIED END-TO-END PATH</text>
+  <line x1="60" y1="232" x2="760" y2="232" stroke="#2A2D31" stroke-width="2"/>
+  <line x1="60" y1="232" x2="760" y2="232" stroke="url(#ts)" stroke-width="2" stroke-dasharray="140 560" opacity=".85">
+    <animate attributeName="stroke-dashoffset" values="700;0" dur="3.4s" repeatCount="indefinite"/>
+  </line>
+
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="10" fill="#9A9DA3" text-anchor="middle">
+    <circle cx="60"  cy="232" r="5.5" fill="#080A0E" stroke="#5E6166" stroke-width="2"/><text x="60"  y="256">app</text>
+    <circle cx="235" cy="232" r="5.5" fill="#080A0E" stroke="#5E6166" stroke-width="2"/><text x="235" y="256">InviZible VPN</text>
+    <circle cx="410" cy="232" r="5.5" fill="#080A0E" stroke="#5E6166" stroke-width="2"/><text x="410" y="256">SOCKS5 :48115</text>
+    <circle cx="585" cy="232" r="5.5" fill="#080A0E" stroke="#5E6166" stroke-width="2"/><text x="585" y="256">TailSocks</text>
+    <circle cx="760" cy="232" r="5.5" fill="#080A0E" stroke="#00D481" stroke-width="2"/><text x="760" y="256" fill="#00D481">tailnet</text>
+  </g>
+
+  <!-- packet -->
+  <circle r="5" fill="#00D481" filter="url(#glow)">
+    <animate attributeName="cx" values="60;760" dur="3.4s" repeatCount="indefinite"/>
+    <animate attributeName="cy" values="232;232" dur="3.4s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;1;0" dur="3.4s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="774" y="288" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="9" fill="#4A4D52" letter-spacing="1.4">0.9.0-beta · GPL-3.0 · fork of Gedsh/InviZible</text>
+</svg>
