@@ -869,7 +869,7 @@ public class ModulesService extends Service {
                 // user's original proxy settings stayed overwritten until they re-toggled
                 // Tailscale inside InviZible. Revert on any observed stop, not just our own.
                 if (!running && previous != STOPPED) {
-                    revertTailscaleConfigAfterExternalStop();
+                    revertTailscaleConfig("TailSocks stopped externally");
                 }
             }
         };
@@ -884,17 +884,22 @@ public class ModulesService extends Service {
     }
 
     /**
-     * Revert the auto-config after TailSocks stopped without InviZible asking it to.
-     * Also clears the EnableTailscale preference: leaving it set would keep the Tor and I2P
-     * checkboxes locked (they gate on it) even though Tailscale is no longer running, trapping
-     * the user with no usable module.
+     * Revert the Tailscale auto-config whenever the session ends without a clean user-driven
+     * disable — an external stop (audit #11), or a failed/timed-out start (audit #9).
+     *
+     * Leaving it applied points USE_PROXY at a now-dead SOCKS port and keeps the user's original
+     * proxy settings overwritten, which silently breaks connectivity for proxied apps until they
+     * happen to re-toggle Tailscale. Also clears EnableTailscale: the Tor and I2P checkboxes gate
+     * on it, so leaving it set would strand the user with every module greyed out.
+     *
+     * Safe to call unconditionally — it no-ops when nothing is applied.
      */
-    private void revertTailscaleConfigAfterExternalStop() {
+    private void revertTailscaleConfig(String reason) {
         try {
             if (!TailscaleBridgeStatus.isProxyConfigApplied(this)) {
                 return;
             }
-            logi("Tailscale bridge: TailSocks stopped externally, reverting proxy/DNS/bypass config");
+            logi("Tailscale bridge: " + reason + ", reverting proxy/DNS/bypass config");
             preferenceRepository.get().setBoolPreference(PREF_ENABLE_TAILSCALE, false);
             TailscaleAutoConfig.INSTANCE.onTailscaleDisabled(
                     this,
@@ -903,7 +908,7 @@ public class ModulesService extends Service {
                     }
             );
         } catch (Exception e) {
-            loge("ModulesService revertTailscaleConfigAfterExternalStop", e);
+            loge("ModulesService revertTailscaleConfig", e);
         }
     }
 
@@ -937,8 +942,12 @@ public class ModulesService extends Service {
             svc.putExtra("bridge_socks_only", true);
             androidx.core.content.ContextCompat.startForegroundService(this, svc);
         } catch (Exception e) {
+            // SECURITY/UX (audit #9): the auto-config was already applied before we got here,
+            // so a failed start must roll it back — otherwise USE_PROXY is left pointing at a
+            // dead SOCKS port and the user's own proxy settings stay overwritten.
             loge("ModulesService startTailscale", e);
             modulesStatus.setTailscaleState(STOPPED);
+            revertTailscaleConfig("Tailscale start failed");
             return;
         }
         // No optimistic RUNNING: only the STATUS reply confirms. Time out otherwise.
@@ -947,6 +956,8 @@ public class ModulesService extends Service {
                 if (modulesStatus.getTailscaleState() == STARTING) {
                     loge("Tailscale start timed out: no bridge status from TailSocks");
                     modulesStatus.setTailscaleState(STOPPED);
+                    // audit #9: roll back the auto-config applied before the start attempt
+                    revertTailscaleConfig("Tailscale start timed out");
                     if (handler != null) {
                         handler.get().post(() -> Toast.makeText(
                                 this, R.string.tvTailscaleNotInstalled, Toast.LENGTH_LONG).show());
