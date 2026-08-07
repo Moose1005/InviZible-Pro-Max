@@ -57,7 +57,12 @@ import pan.alexander.tordnscrypt.utils.executors.CoroutineExecutor;
 import pan.alexander.tordnscrypt.utils.portchecker.PortChecker;
 import pan.alexander.tordnscrypt.utils.root.RootExecService;
 import pan.alexander.tordnscrypt.utils.wakelock.WakeLocksManager;
+import pan.alexander.tordnscrypt.utils.enums.ModuleState;
 import pan.alexander.tordnscrypt.utils.enums.OperationMode;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleAutoConfig;
+import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatus;
+
+import static pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatusKt.PREF_ENABLE_TAILSCALE;
 import pan.alexander.tordnscrypt.utils.filemanager.FileManager;
 import pan.alexander.tordnscrypt.vpn.service.ServiceVPNHelper;
 
@@ -843,9 +848,29 @@ public class ModulesService extends Service {
                     return;
                 }
                 boolean running = intent.getBooleanExtra("running", false);
+
+                // SECURITY (audit #10): TailSocks broadcasts running=true on EVERY start,
+                // including ones we never asked for (its launcher icon, QS tile, widget, boot
+                // receiver). Acting on those drove our state to RUNNING, auto-checked the
+                // Tailscale box and silently force-stopped the user's Tor/I2P. Only act on a
+                // transition we initiated, or while the user has Tailscale enabled here.
+                if (!TailscaleBridgeStatus.shouldAccept(running)) {
+                    return;
+                }
+
                 logi("ModulesService TailSocks bridge status: running=" + running);
+                ModuleState previous = modulesStatus.getTailscaleState();
                 modulesStatus.setTailscaleState(running ? RUNNING : STOPPED);
                 modulesStatus.setTailscaleReady(running);
+
+                // SECURITY (audit #11): TailSocks can stop outside InviZible (its own UI, tile,
+                // widget, or an engine crash). Previously that flipped state to STOPPED but left
+                // our proxy/DNS/bypass config applied, pointing at a now-dead SOCKS port — the
+                // user's original proxy settings stayed overwritten until they re-toggled
+                // Tailscale inside InviZible. Revert on any observed stop, not just our own.
+                if (!running && previous != STOPPED) {
+                    revertTailscaleConfigAfterExternalStop();
+                }
             }
         };
         androidx.core.content.ContextCompat.registerReceiver(
@@ -856,6 +881,30 @@ public class ModulesService extends Service {
                 null,
                 androidx.core.content.ContextCompat.RECEIVER_EXPORTED
         );
+    }
+
+    /**
+     * Revert the auto-config after TailSocks stopped without InviZible asking it to.
+     * Also clears the EnableTailscale preference: leaving it set would keep the Tor and I2P
+     * checkboxes locked (they gate on it) even though Tailscale is no longer running, trapping
+     * the user with no usable module.
+     */
+    private void revertTailscaleConfigAfterExternalStop() {
+        try {
+            if (!TailscaleBridgeStatus.isProxyConfigApplied(this)) {
+                return;
+            }
+            logi("Tailscale bridge: TailSocks stopped externally, reverting proxy/DNS/bypass config");
+            preferenceRepository.get().setBoolPreference(PREF_ENABLE_TAILSCALE, false);
+            TailscaleAutoConfig.INSTANCE.onTailscaleDisabled(
+                    this,
+                    pathVars.get().getDNSCryptForwardingRulesPath(),
+                    () -> {
+                    }
+            );
+        } catch (Exception e) {
+            loge("ModulesService revertTailscaleConfigAfterExternalStop", e);
+        }
     }
 
     private void unregisterTailscaleStatusReceiver() {

@@ -25,7 +25,8 @@ private const val FORWARDING_RULE = "ts.net $TAILSOCKS_DNS_ADDR"
 private const val PREF_PREV_PROXY_ADDR = "tailscale_prev_proxy_addr"
 private const val PREF_PREV_PROXY_PORT = "tailscale_prev_proxy_port"
 private const val PREF_PREV_USE_PROXY = "tailscale_prev_use_proxy"
-private const val PREF_PROXY_APPLIED = "tailscale_proxy_applied"
+// PREF_PROXY_APPLIED is declared in TailscaleBridgeStatus.kt — single source of truth, since
+// the bridge receiver also reads it to decide whether a teardown is needed (audit #11).
 
 object TailscaleAutoConfig {
 
