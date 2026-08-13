@@ -96,6 +96,38 @@ class TailscaleFragmentPresenter(private var view: TailscaleFragmentView?) {
         }
     }
 
+    /**
+     * Revert the auto-config when the user unchecks Tailscale while every module is STOPPED
+     * (audit #16).
+     *
+     * MainFragment.onCheckedChanged only routes to [startButtonOnClick] from inside a guard that
+     * requires some module to be non-STOPPED. With everything stopped that guard is skipped, so
+     * unchecking the box cleared EnableTailscale but left the proxy repointed at 127.0.0.1:48115,
+     * the ts.net forwarding rule in place and TailSocks still bypassing the VPN — all aimed at a
+     * dead SOCKS port. This is the common case for anyone who toggles the tunnel off to satisfy an
+     * app that refuses to run over a VPN.
+     *
+     * [startButtonOnClick] cannot be reused here: it branches on tailscaleState, which is STOPPED
+     * in exactly this situation, so it would take the *enable* path and re-apply the config.
+     *
+     * No-ops when nothing is applied. Safe if the teardown already ran via the guarded path — the
+     * two submissions serialise on TailscaleAutoConfig's single-thread executor and the second
+     * finds the applied flag already cleared. Reverting twice is harmless; not reverting is a
+     * broken connection, so the bias is deliberate.
+     */
+    fun revertConfigIfApplied() {
+        try {
+            val context: Context = view?.getFragmentActivity() ?: return
+            if (!TailscaleBridgeStatus.isProxyConfigApplied(context)) return
+            TailscaleAutoConfig.onTailscaleDisabled(
+                context,
+                pathVars.get().dnsCryptForwardingRulesPath
+            ) {}
+        } catch (e: Exception) {
+            loge("TailscaleFragmentPresenter revertConfigIfApplied", e)
+        }
+    }
+
     private fun setRunning() {
         view?.setTailscaleStatus(R.string.tvTailscaleRunning, R.color.textModuleStatusColorRunning)
         view?.setStartButtonText(R.string.btnDNSCryptStop)

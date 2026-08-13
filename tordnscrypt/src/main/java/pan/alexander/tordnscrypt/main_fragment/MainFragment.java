@@ -576,6 +576,16 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             chbHideIpMainFragment.setEnabled(true);
             chbAccessITPMainFragment.setEnabled(true);
             chbProtectDnsMainFragment.setEnabled(true);
+
+            // SECURITY (audit #16): the branch above that routes to startButtonOnClick() — which is
+            // what normally tears the config down — sits behind a guard requiring some module to be
+            // non-STOPPED. Turning Tailscale off with everything already stopped skipped it, so the
+            // proxy stayed pointed at the now-dead 127.0.0.1:48115, the ts.net rule stayed in the
+            // DNSCrypt config and TailSocks stayed on the VPN bypass list. This method always runs,
+            // guard or no guard, so the teardown belongs here. It no-ops when nothing is applied.
+            if (tailscaleFragmentPresenter != null) {
+                tailscaleFragmentPresenter.revertConfigIfApplied();
+            }
         }
     }
 
