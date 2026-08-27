@@ -550,6 +550,24 @@
     <string name="about_app_ver" translatable="false">Application Version:</string>
     <string name="about_build_date" translatable="false">Build Date:</string>
     <string name="about_proc_ver" translatable="false">Processor Version:</string>
+    <string name="about_promax_title" translatable="false">InviZible Pro Max</string>
+    <string name="about_promax_description" translatable="false">
+        \tInviZible Pro Max is a fork of InviZible Pro that adds Tailscale as a fourth module,
+        alongside DNSCrypt, Tor and Purple I2P.\n\t
+        Android allows only one VPN app at a time, so rather than running a second VPN, this build
+        bridges to TailSocks, a userspace tailscaled, over a signature-protected channel and routes
+        app traffic through its local SOCKS5 proxy. InviZible keeps the tunnel throughout. No root
+        is required.\n\t
+        Enabling Tailscale configures the proxy, DNS forwarding for ts.net names and the VPN bypass
+        in one step, and reverses every one of those changes when it is switched off. Tailscale is
+        mutually exclusive with Tor and Purple I2P, and DNSCrypt is held on while it runs, because
+        DNSCrypt owns the service that captures app traffic.</string>
+    <string name="about_promax_upstream" translatable="false">
+        \tBuilt on InviZible Pro by Garmatin Oleksandr, and distributed under the same GNU General
+        Public License. All original copyright, licences and donation details below belong to the
+        upstream project and are reproduced unchanged. Please support the original author.</string>
+    <string name="about_license_tailsocks" translatable="false">bropines/TailSocks license</string>
+
     <string name="about_own_copyright" translatable="false">Copyright (C) 2019-2026 Garmatin Oleksandr\n All Rights Reserved\n Web Site:</string>
     <string name="privacy_policy_title" translatable="false">Privacy Policy</string>
     <string name="privacy_policy" translatable="false">\tInviZible Pro does not collect or share any personal or sensitive user data.

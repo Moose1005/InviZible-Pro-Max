@@ -138,6 +138,7 @@ public class AboutActivity extends LangAppCompatActivity implements View.OnClick
         findViewById(R.id.netGuardLicense).setOnClickListener(this);
         findViewById(R.id.filepickerLicense).setOnClickListener(this);
         findViewById(R.id.busyboxLicense).setOnClickListener(this);
+        findViewById(R.id.tailsocksLicense).setOnClickListener(this);
     }
 
     @SuppressLint("InflateParams")
@@ -265,6 +266,8 @@ public class AboutActivity extends LangAppCompatActivity implements View.OnClick
             showLicense(R.string.about_license_filepicker, R.raw.filepicker_license, true);
         } else if (id == R.id.busyboxLicense) {
             showLicense(R.string.about_license_busybox, R.raw.busybox_license, false);
+        } else if (id == R.id.tailsocksLicense) {
+            showLicense(R.string.about_license_tailsocks, R.raw.tailsocks_license, false);
         }
     }
 }
