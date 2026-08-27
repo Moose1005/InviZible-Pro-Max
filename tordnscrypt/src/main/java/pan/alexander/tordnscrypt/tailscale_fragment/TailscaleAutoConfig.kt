@@ -7,9 +7,10 @@ import pan.alexander.tordnscrypt.App
 import pan.alexander.tordnscrypt.BuildConfig
 import pan.alexander.tordnscrypt.modules.ModulesRestarter
 import pan.alexander.tordnscrypt.modules.ModulesStatus
-import pan.alexander.tordnscrypt.utils.enums.ModuleState.RUNNING
+import pan.alexander.tordnscrypt.utils.enums.ModuleState.STOPPED
 import pan.alexander.tordnscrypt.utils.logger.Logger.loge
 import pan.alexander.tordnscrypt.utils.logger.Logger.logw
+import pan.alexander.tordnscrypt.utils.filemanager.ForwardingRulesLock
 import pan.alexander.tordnscrypt.utils.preferences.PreferenceKeys.APPS_BYPASS_VPN
 import pan.alexander.tordnscrypt.utils.preferences.PreferenceKeys.PROXY_ADDRESS
 import pan.alexander.tordnscrypt.utils.preferences.PreferenceKeys.PROXY_PORT
@@ -56,7 +57,15 @@ object TailscaleAutoConfig {
                 val ruleChanged = addForwardingRule(forwardingRulesPath)
 
                 val modulesStatus = ModulesStatus.getInstance()
-                if (ruleChanged && modulesStatus.dnsCryptState == RUNNING) {
+                // SECURITY (audit #17): this used to require dnsCryptState == RUNNING. Pressing
+                // Start with both DNSCrypt and Tailscale checked leaves DNSCrypt STARTING at this
+                // moment, so the restart was skipped and dnscrypt-proxy could finish loading
+                // without the appended "ts.net 127.0.0.1:1053" line. MagicDNS names then resolved
+                // via the public upstream instead of TailSocks — encrypted, so not a clearnet
+                // leak, but it exposes tailnet device hostnames to a third-party resolver and
+                // breaks resolution. Restart for any non-stopped state; the extra restart is
+                // cheap next to leaking hostnames.
+                if (ruleChanged && modulesStatus.dnsCryptState != STOPPED) {
                     ModulesRestarter.restartDNSCrypt(context)
                 }
                 modulesStatus.setIptablesRulesUpdateRequested(context, true)
@@ -81,7 +90,15 @@ object TailscaleAutoConfig {
                 val ruleChanged = removeForwardingRule(forwardingRulesPath)
 
                 val modulesStatus = ModulesStatus.getInstance()
-                if (ruleChanged && modulesStatus.dnsCryptState == RUNNING) {
+                // SECURITY (audit #17): this used to require dnsCryptState == RUNNING. Pressing
+                // Start with both DNSCrypt and Tailscale checked leaves DNSCrypt STARTING at this
+                // moment, so the restart was skipped and dnscrypt-proxy could finish loading
+                // without the appended "ts.net 127.0.0.1:1053" line. MagicDNS names then resolved
+                // via the public upstream instead of TailSocks — encrypted, so not a clearnet
+                // leak, but it exposes tailnet device hostnames to a third-party resolver and
+                // breaks resolution. Restart for any non-stopped state; the extra restart is
+                // cheap next to leaking hostnames.
+                if (ruleChanged && modulesStatus.dnsCryptState != STOPPED) {
                     ModulesRestarter.restartDNSCrypt(context)
                 }
                 modulesStatus.setIptablesRulesUpdateRequested(context, true)
@@ -161,7 +178,11 @@ object TailscaleAutoConfig {
         }
     }
 
-    private fun addForwardingRule(path: String): Boolean {
+    // SECURITY (audit #13): both of these do a read-modify-write on the same file that
+    // ModifyForwardingRules rewrites from another thread. Hold the shared lock so the two cannot
+    // interleave and silently drop the ts.net rule — which would send .ts.net lookups to the
+    // public upstream resolver and expose tailnet hostnames.
+    private fun addForwardingRule(path: String): Boolean = synchronized(ForwardingRulesLock.LOCK) {
         try {
             val file = File(path)
             if (!file.exists()) return false
@@ -176,14 +197,18 @@ object TailscaleAutoConfig {
         return false
     }
 
-    private fun removeForwardingRule(path: String): Boolean {
+    private fun removeForwardingRule(path: String): Boolean = synchronized(ForwardingRulesLock.LOCK) {
         try {
             val file = File(path)
             if (!file.exists()) return false
             val lines = file.readLines()
             val filtered = lines.filter { it.trim() != FORWARDING_RULE }
             if (filtered.size != lines.size) {
-                file.writeText(filtered.joinToString("\n"))
+                // audit #13: writeText truncates then writes, so dnscrypt-proxy — a separate
+                // native process that cannot take our lock — can read a half-written or empty
+                // rules file. Stage to a temp file and rename, which is atomic on the same
+                // filesystem, so a concurrent reader sees either the old file or the new one.
+                writeAtomically(file, filtered.joinToString("\n"))
                 return true
             }
         } catch (e: Exception) {
@@ -194,5 +219,28 @@ object TailscaleAutoConfig {
             logw("Check DNSCrypt forwarding rules at $path")
         }
         return false
+    }
+
+    /**
+     * Replace [file]'s contents without ever leaving it truncated (audit #13).
+     *
+     * dnscrypt-proxy reads the rules file as a separate native process, so it cannot take
+     * [ForwardingRulesLock]. Staging to a sibling temp file and renaming means a reader observes
+     * either the complete old file or the complete new one, never a partial write.
+     */
+    private fun writeAtomically(file: File, content: String) {
+        val tmp = File(file.parentFile, "${file.name}.tstmp")
+        try {
+            tmp.writeText(content)
+            if (!tmp.renameTo(file)) {
+                // Rename can fail if the temp landed on a different mount; fall back to a copy.
+                // Less safe, but still better than leaving the rule in place.
+                tmp.copyTo(file, overwrite = true)
+            }
+        } finally {
+            if (tmp.exists()) {
+                tmp.delete()
+            }
+        }
     }
 }

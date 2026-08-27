@@ -24,6 +24,7 @@ import pan.alexander.tordnscrypt.App
 import pan.alexander.tordnscrypt.modules.ModulesRestarter
 import pan.alexander.tordnscrypt.modules.ModulesStatus
 import pan.alexander.tordnscrypt.utils.enums.ModuleState
+import pan.alexander.tordnscrypt.utils.filemanager.ForwardingRulesLock
 import pan.alexander.tordnscrypt.utils.logger.Logger.loge
 import java.io.File
 import java.io.PrintWriter
@@ -57,7 +58,11 @@ class ModifyForwardingRules(private val context: Context,
         }
     }
 
-    private fun replaceLineInFile(inputFilePath: String, tmpOutputFilePath: String) {
+    // SECURITY (audit #13): this snapshot-write-copyBack races TailscaleAutoConfig, which appends
+    // and removes the "ts.net 127.0.0.1:1053" line from its own executor. Without a shared lock,
+    // a snapshot taken before that append is copied back afterwards and silently erases the rule,
+    // sending .ts.net lookups to the public upstream resolver and exposing tailnet hostnames.
+    private fun replaceLineInFile(inputFilePath: String, tmpOutputFilePath: String) = synchronized(ForwardingRulesLock.LOCK) {
         try {
 
             val inputFile = File(inputFilePath)

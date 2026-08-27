@@ -69,6 +69,8 @@ import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentPresenter;
 import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentReceiver;
 import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleFragmentView;
 import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleAutoConfig;
+
+import static pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatusKt.TAILSCALE_STATE_CHANGED_ACTION;
 import pan.alexander.tordnscrypt.R;
 import pan.alexander.tordnscrypt.dnscrypt_fragment.DNSCryptFragmentPresenter;
 import pan.alexander.tordnscrypt.dnscrypt_fragment.DNSCryptFragmentReceiver;
@@ -135,6 +137,11 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
 
     private TailscaleFragmentPresenter tailscaleFragmentPresenter;
     private TailscaleFragmentReceiver tailscaleBridgeReceiver;
+    /**
+     * Set only while enforceTailscaleMutualExclusion programmatically unchecks the Tor and I2P
+     * boxes, so its own setChecked calls do not re-enter onCheckedChanged (audit #21).
+     */
+    private boolean suppressCheckedChangeEvents = false;
     private CheckBox chbTailscaleMainFragment;
     private TextView tvTailscaleMainFragment;
     private ProgressBar pbTailscaleMainFragment;
@@ -395,7 +402,13 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
         if (v.getId() == R.id.btnStartMainFragment) {
 
             boolean runDnsCrypt = chbProtectDnsMainFragment.isChecked();
-            boolean runTailscale = chbTailscaleMainFragment.isChecked();
+            // SECURITY (audit #15): gate on install here too, not just in the presenter. runTor and
+            // runITPD are computed as !runTailscale, so a stale EnableTailscale=true with TailSocks
+            // uninstalled would suppress Tor and I2P as well and the Start button would do nothing
+            // at all. Treating an uninstalled TailSocks as "not selected" keeps the other modules
+            // working while the presenter clears the stale flag.
+            boolean runTailscale = chbTailscaleMainFragment.isChecked()
+                    && TailscaleAutoConfig.INSTANCE.isTailsocksInstalled(context);
             boolean runTor  = !runTailscale && chbHideIpMainFragment.isChecked();
             boolean runITPD = !runTailscale && chbAccessITPMainFragment.isChecked();
 
@@ -480,6 +493,17 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
 
+        // SECURITY (audit #21): enforceTailscaleMutualExclusion unchecks the Tor and I2P boxes
+        // programmatically, which re-enters here with the module state not yet transitioned to
+        // STOPPED. That re-entrant call went to the presenter's startButtonOnClick — NOT the
+        // state-agnostic forceStop the exclusion path deliberately uses — so it re-introduced the
+        // very bug fixed for #5: a module caught mid-STARTING got re-launched instead of stopped,
+        // running the exclusion side effects twice per toggle. The caller persists the two
+        // preferences itself while this is set.
+        if (suppressCheckedChangeEvents) {
+            return;
+        }
+
         Context context = getActivity();
         if (context == null) {
             return;
@@ -556,8 +580,19 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
             // of stopping them, defeating mutual exclusion. forceStop() stops state-agnostically.
             torFragmentPresenter.forceStop();
             itpdFragmentPresenter.forceStop();
-            chbHideIpMainFragment.setChecked(false);
-            chbAccessITPMainFragment.setChecked(false);
+            // audit #21: suppress re-entry so these do not route back into onCheckedChanged and
+            // call startButtonOnClick a second time, undoing the forceStop above.
+            suppressCheckedChangeEvents = true;
+            try {
+                chbHideIpMainFragment.setChecked(false);
+                chbAccessITPMainFragment.setChecked(false);
+            } finally {
+                suppressCheckedChangeEvents = false;
+            }
+            // Persist what the suppressed listener would have written, so the boxes do not come
+            // back checked from preferences on the next launch while Tailscale is still on.
+            preferenceRepository.get().setBoolPreference("HideIp", false);
+            preferenceRepository.get().setBoolPreference("AccessITP", false);
             chbHideIpMainFragment.setEnabled(false);
             chbAccessITPMainFragment.setEnabled(false);
 
@@ -975,6 +1010,19 @@ public class MainFragment extends Fragment implements DNSCryptFragmentView, TorF
                     "pan.alexander.tordnscrypt.BRIDGE_PERMISSION",
                     null,
                     ContextCompat.RECEIVER_EXPORTED
+            );
+
+            // audit #14: ModulesService changes Tailscale state on a start/stop timeout or a
+            // failed start, none of which produce a bridge broadcast — so this receiver, which is
+            // the only thing that drives refreshTailscaleState, never fired and the module's
+            // status text and spinner stayed stuck until the fragment was recreated. Separate,
+            // app-private registration: NOT_EXPORTED and no bridge permission, because this signal
+            // comes from us and must never be accepted from another app.
+            ContextCompat.registerReceiver(
+                    context,
+                    tailscaleBridgeReceiver,
+                    new IntentFilter(TAILSCALE_STATE_CHANGED_ACTION),
+                    ContextCompat.RECEIVER_NOT_EXPORTED
             );
         }
     }

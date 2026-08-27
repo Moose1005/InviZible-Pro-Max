@@ -63,6 +63,7 @@ import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleAutoConfig;
 import pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatus;
 
 import static pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatusKt.PREF_ENABLE_TAILSCALE;
+import static pan.alexander.tordnscrypt.tailscale_fragment.TailscaleBridgeStatusKt.TAILSCALE_STATE_CHANGED_ACTION;
 import pan.alexander.tordnscrypt.utils.filemanager.FileManager;
 import pan.alexander.tordnscrypt.vpn.service.ServiceVPNHelper;
 
@@ -836,6 +837,63 @@ public class ModulesService extends Service {
     private static final int TAILSCALE_START_TIMEOUT_MSEC = 20000;
     private static final int TAILSCALE_STOP_TIMEOUT_MSEC = 10000;
 
+    // audit #18: the start/stop timeouts were fire-and-forget, guarded only by a state check. That
+    // is not enough to identify which operation a timeout belongs to: start, confirm, stop, start
+    // again within 20s, and the first start's timeout fires while the second start happens to be
+    // STARTING too — killing a legitimate in-progress start with a bogus "not installed" toast.
+    // Hold the runnables so they can be cancelled the moment they become irrelevant.
+    private volatile Runnable tailscaleStartTimeout;
+    private volatile Runnable tailscaleStopTimeout;
+
+    /** Drop any pending Tailscale timeout. Safe to call when none is armed. */
+    private void cancelTailscaleTimeouts() {
+        if (handler == null) {
+            return;
+        }
+        Runnable start = tailscaleStartTimeout;
+        if (start != null) {
+            handler.get().removeCallbacks(start);
+            tailscaleStartTimeout = null;
+        }
+        Runnable stop = tailscaleStopTimeout;
+        if (stop != null) {
+            handler.get().removeCallbacks(stop);
+            tailscaleStopTimeout = null;
+        }
+    }
+
+    /**
+     * Tell our own Tailscale UI that state changed without a bridge broadcast (audit #14).
+     *
+     * The presenter's refreshTailscaleState is driven solely by TailscaleFragmentReceiver, which
+     * only listens for TailSocks' STATUS action. When a start times out no such broadcast ever
+     * arrives, so the status text stayed "Starting" and the progress spinner kept spinning
+     * indefinitely — the checkbox self-healed via the modules-state loop, but the module's own UI
+     * did not, leaving a stuck screen that only a fragment recreation cleared.
+     *
+     * App-private: explicitly addressed to ourselves, and the receiver registers it
+     * RECEIVER_NOT_EXPORTED.
+     */
+    private void notifyTailscaleStateChanged() {
+        try {
+            Intent intent = new Intent(TAILSCALE_STATE_CHANGED_ACTION);
+            intent.setPackage(getPackageName());
+            sendBroadcast(intent);
+        } catch (Exception e) {
+            loge("ModulesService notifyTailscaleStateChanged", e);
+        }
+    }
+
+    /** Fire an action at TailSocks' exported service. Shared by start, stop and the timeouts. */
+    private void sendTailscaleServiceAction(String action) {
+        Intent svc = new Intent();
+        svc.setComponent(new android.content.ComponentName(
+                pan.alexander.tordnscrypt.BuildConfig.TAILSOCKS_PACKAGE,
+                TAILSOCKS_SERVICE_CLASS));
+        svc.setAction(action);
+        androidx.core.content.ContextCompat.startForegroundService(this, svc);
+    }
+
     private android.content.BroadcastReceiver tailscaleStatusReceiver;
 
     // Long-lived STATUS receiver: TailSocks' broadcast is the ONLY path to RUNNING.
@@ -859,6 +917,12 @@ public class ModulesService extends Service {
                 }
 
                 logi("ModulesService TailSocks bridge status: running=" + running);
+
+                // audit #18: this is the confirmation the pending timeout was waiting for, so it
+                // has done its job. Leaving it armed lets it fire later against whatever operation
+                // happens to be in flight then.
+                cancelTailscaleTimeouts();
+
                 ModuleState previous = modulesStatus.getTailscaleState();
                 modulesStatus.setTailscaleState(running ? RUNNING : STOPPED);
                 modulesStatus.setTailscaleReady(running);
@@ -926,6 +990,10 @@ public class ModulesService extends Service {
             "io.github.bropines.tailscaled.core.TailscaledService";
 
     private void startTailscale() {
+        // audit #18: drop any timeout still pending from an earlier operation before we set
+        // STARTING, or that stale runnable will match this fresh state and abort a start it knows
+        // nothing about.
+        cancelTailscaleTimeouts();
         modulesStatus.setTailscaleState(STARTING);
         try {
             // Start TailSocks' exported foreground service directly. InviZible is in the
@@ -948,46 +1016,67 @@ public class ModulesService extends Service {
             loge("ModulesService startTailscale", e);
             modulesStatus.setTailscaleState(STOPPED);
             revertTailscaleConfig("Tailscale start failed");
+            // audit #14: no bridge broadcast will arrive for this, so refresh our own UI.
+            notifyTailscaleStateChanged();
             return;
         }
         // No optimistic RUNNING: only the STATUS reply confirms. Time out otherwise.
         if (handler != null) {
-            handler.get().postDelayed(() -> {
+            Runnable timeout = () -> {
+                tailscaleStartTimeout = null;
                 if (modulesStatus.getTailscaleState() == STARTING) {
                     loge("Tailscale start timed out: no bridge status from TailSocks");
                     modulesStatus.setTailscaleState(STOPPED);
+
+                    // audit #20: we launched TailSocks and are now declaring it STOPPED. If it did
+                    // start and only its confirmation went missing, leaving it running desyncs our
+                    // state from reality — the tunnel is up and routing while the UI says it is
+                    // not, and the next user "start" double-starts it. Tell it to stop so the two
+                    // sides agree, which is also the leak-safe direction.
+                    try {
+                        sendTailscaleServiceAction("STOP_ACTION");
+                    } catch (Exception e) {
+                        loge("ModulesService stopping TailSocks after start timeout", e);
+                    }
+
                     // audit #9: roll back the auto-config applied before the start attempt
                     revertTailscaleConfig("Tailscale start timed out");
+                    // audit #14: nothing else will clear the spinner or the "Starting" text.
+                    notifyTailscaleStateChanged();
                     if (handler != null) {
                         handler.get().post(() -> Toast.makeText(
                                 this, R.string.tvTailscaleNotInstalled, Toast.LENGTH_LONG).show());
                     }
                 }
-            }, TAILSCALE_START_TIMEOUT_MSEC);
+            };
+            tailscaleStartTimeout = timeout;
+            handler.get().postDelayed(timeout, TAILSCALE_START_TIMEOUT_MSEC);
         }
     }
 
     private void stopTailscale() {
+        // audit #18: same reasoning as startTailscale — clear any pending timeout first.
+        cancelTailscaleTimeouts();
         modulesStatus.setTailscaleState(STOPPING);
         try {
             // Start-with-STOP_ACTION: TailscaledService.onStartCommand handles STOP_ACTION by
             // tearing itself down. Same direct-component path as start.
-            Intent svc = new Intent();
-            svc.setComponent(new android.content.ComponentName(
-                    pan.alexander.tordnscrypt.BuildConfig.TAILSOCKS_PACKAGE,
-                    TAILSOCKS_SERVICE_CLASS));
-            svc.setAction("STOP_ACTION");
-            androidx.core.content.ContextCompat.startForegroundService(this, svc);
+            sendTailscaleServiceAction("STOP_ACTION");
         } catch (Exception e) {
             loge("ModulesService stopTailscale", e);
         }
         // Fail-safe: TailSocks may already be dead and unable to confirm.
         if (handler != null) {
-            handler.get().postDelayed(() -> {
+            Runnable timeout = () -> {
+                tailscaleStopTimeout = null;
                 if (modulesStatus.getTailscaleState() == STOPPING) {
                     modulesStatus.setTailscaleState(STOPPED);
+                    // audit #14: same for a stop that never got confirmed.
+                    notifyTailscaleStateChanged();
                 }
-            }, TAILSCALE_STOP_TIMEOUT_MSEC);
+            };
+            tailscaleStopTimeout = timeout;
+            handler.get().postDelayed(timeout, TAILSCALE_STOP_TIMEOUT_MSEC);
         }
     }
 

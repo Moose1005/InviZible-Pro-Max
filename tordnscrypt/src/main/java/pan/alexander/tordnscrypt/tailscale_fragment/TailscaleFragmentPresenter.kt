@@ -78,6 +78,33 @@ class TailscaleFragmentPresenter(private var view: TailscaleFragmentView?) {
             return
         }
 
+        // SECURITY (audit #15): onStart() install-gates the start button, but nothing gated this
+        // path — MainFragment.onClick reaches it straight from the checkbox state. A stale
+        // EnableTailscale=true with TailSocks since uninstalled therefore still ran
+        // onTailscaleEnabled, repointing the proxy at 127.0.0.1:48115 and adding the ts.net DNS
+        // forwarding rule, both aimed at a component that no longer exists — leaving the device
+        // proxying through a dead SOCKS port until someone reverted it by hand.
+        if (modulesStatus.tailscaleState != RUNNING
+            && !TailscaleAutoConfig.isTailsocksInstalled(context)
+        ) {
+            // Fail closed, and clear the stale flag rather than just refusing: Tor and I2P gate
+            // their checkboxes on EnableTailscale, so leaving it set strands the user with every
+            // module greyed out — the same trap that made clearing it essential for #11.
+            try {
+                App.instance.daggerComponent.getPreferenceRepository().get()
+                    .setBoolPreference(PREF_ENABLE_TAILSCALE, false)
+            } catch (e: Exception) {
+                loge("TailscaleFragmentPresenter clearing stale EnableTailscale", e)
+            }
+            revertConfigIfApplied()
+            view?.setTailscaleStatus(
+                R.string.tvTailscaleNotInstalled,
+                R.color.textModuleStatusColorAlert
+            )
+            setButtonEnabled(false)
+            return
+        }
+
         setButtonEnabled(false)
         if (modulesStatus.tailscaleState != RUNNING) {
             setStarting()
