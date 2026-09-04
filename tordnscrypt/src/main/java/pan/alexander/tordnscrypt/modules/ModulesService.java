@@ -1008,6 +1008,13 @@ public class ModulesService extends Service {
             // would seize it and revoke InviZible's tunnel (audit HIGH #3). This tells
             // TailscaledService to skip TUN mode for this bridge-initiated start.
             svc.putExtra("bridge_socks_only", true);
+            // audit #12: tell TailSocks who we are so it can address its status broadcast to this
+            // package explicitly instead of broadcasting implicitly to whoever holds the permission
+            // — which a permission squatter can be. TailSocks verifies this package is signed with
+            // its own key before trusting it, so a forged name here buys nothing. It cannot simply
+            // look our receivers up: they are registered at runtime, not declared in the manifest,
+            // so PackageManager.queryBroadcastReceivers does not see them.
+            svc.putExtra("bridge_client_package", getPackageName());
             androidx.core.content.ContextCompat.startForegroundService(this, svc);
         } catch (Exception e) {
             // SECURITY/UX (audit #9): the auto-config was already applied before we got here,
