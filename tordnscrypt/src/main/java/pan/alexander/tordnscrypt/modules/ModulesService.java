@@ -837,6 +837,42 @@ public class ModulesService extends Service {
     private static final int TAILSCALE_START_TIMEOUT_MSEC = 20000;
     private static final int TAILSCALE_STOP_TIMEOUT_MSEC = 10000;
 
+    /**
+     * Debug-only timeout override, so the audit #14/#18/#20 paths can be exercised without editing
+     * a constant and rebuilding. Set before starting Tailscale, e.g.
+     * {@code adb shell setprop debug.invizible.ts_start_timeout 3000}.
+     *
+     * Hard-gated on BuildConfig.DEBUG: in a release build this method is never consulted and the
+     * constants above are used unchanged. The {@code debug.} prefix is what makes the property
+     * settable from an unrooted adb shell.
+     *
+     * Any failure to read or parse falls back to the production value — a test hook must never be
+     * able to weaken a timeout in a way the caller does not notice.
+     */
+    private static int debugTimeoutOverride(String prop, int productionValue) {
+        if (!pan.alexander.tordnscrypt.BuildConfig.DEBUG) {
+            return productionValue;
+        }
+        try {
+            @SuppressWarnings("rawtypes")
+            Class sp = Class.forName("android.os.SystemProperties");
+            @SuppressWarnings("unchecked")
+            java.lang.reflect.Method get = sp.getMethod("get", String.class);
+            String raw = (String) get.invoke(null, prop);
+            if (raw == null || raw.trim().isEmpty()) {
+                return productionValue;
+            }
+            int parsed = Integer.parseInt(raw.trim());
+            if (parsed <= 0) {
+                return productionValue;
+            }
+            logw("DEBUG timeout override: " + prop + "=" + parsed + "ms (production " + productionValue + "ms)");
+            return parsed;
+        } catch (Exception e) {
+            return productionValue;
+        }
+    }
+
     // audit #18: the start/stop timeouts were fire-and-forget, guarded only by a state check. That
     // is not enough to identify which operation a timeout belongs to: start, confirm, stop, start
     // again within 20s, and the first start's timeout fires while the second start happens to be
@@ -1057,7 +1093,8 @@ public class ModulesService extends Service {
                 }
             };
             tailscaleStartTimeout = timeout;
-            handler.get().postDelayed(timeout, TAILSCALE_START_TIMEOUT_MSEC);
+            handler.get().postDelayed(timeout,
+                    debugTimeoutOverride("debug.invizible.ts_start_timeout", TAILSCALE_START_TIMEOUT_MSEC));
         }
     }
 
@@ -1083,7 +1120,8 @@ public class ModulesService extends Service {
                 }
             };
             tailscaleStopTimeout = timeout;
-            handler.get().postDelayed(timeout, TAILSCALE_STOP_TIMEOUT_MSEC);
+            handler.get().postDelayed(timeout,
+                    debugTimeoutOverride("debug.invizible.ts_stop_timeout", TAILSCALE_STOP_TIMEOUT_MSEC));
         }
     }
 
